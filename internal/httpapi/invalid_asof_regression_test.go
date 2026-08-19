@@ -26,10 +26,25 @@ func TestAccruedInterestRejectsInvalidAsOf(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := httptest.NewRequest("GET", "/loans/"+l.LoanID+"/accrued-interest?as_of=abc", nil)
+
+	// A non-integer, a negative integer, a sign-prefixed value, and a
+	// value with trailing non-digits must all be rejected with 400 rather
+	// than silently falling back to a default period.
+	for _, asOf := range []string{"abc", "-1", "+3", "3x", "1.5"} {
+		r := httptest.NewRequest("GET", "/loans/"+l.LoanID+"/accrued-interest?as_of="+asOf, nil)
+		w := httptest.NewRecorder()
+		httpapi.NewMux(svc, "").ServeHTTP(w, r)
+		if w.Code != 400 {
+			t.Errorf("as_of=%q: status=%d, body=%s, want 400", asOf, w.Code, w.Body.String())
+		}
+	}
+
+	// A valid non-negative integer must still succeed (regression guard so
+	// the validation does not over-reject well-formed input).
+	r := httptest.NewRequest("GET", "/loans/"+l.LoanID+"/accrued-interest?as_of=2", nil)
 	w := httptest.NewRecorder()
 	httpapi.NewMux(svc, "").ServeHTTP(w, r)
-	if w.Code != 400 {
-		t.Fatalf("status=%d, body=%s", w.Code, w.Body.String())
+	if w.Code != 200 {
+		t.Fatalf("as_of=2: status=%d, body=%s, want 200", w.Code, w.Body.String())
 	}
 }

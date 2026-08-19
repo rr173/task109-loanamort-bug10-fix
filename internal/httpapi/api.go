@@ -271,7 +271,11 @@ func handleProjection(s *loan.Service) http.HandlerFunc {
 func handleAccruedInterest(s *loan.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		asOf := atoiOr(r.URL.Query().Get("as_of"), 0)
+		asOf, valid := requireNonNegativeQuery(r, "as_of")
+		if !valid {
+			writeError(w, http.StatusBadRequest, "as_of must be a non-negative integer")
+			return
+		}
 		resp, err := s.Schedule(r.Context(), id)
 		if err != nil {
 			writeServiceError(w, err)
